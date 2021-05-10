@@ -1,0 +1,4 @@
+include ':playground'
+include ':sdk'
+include ':app'
+rootProject.name = "Easy Access Example"
