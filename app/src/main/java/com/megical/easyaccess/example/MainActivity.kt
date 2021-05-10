@@ -1,7 +1,7 @@
 package com.megical.easyaccess.example
 
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
 import com.megical.easyaccess.example.ui.main.ExampleFragment
 
 class MainActivity : AppCompatActivity() {
@@ -11,8 +11,8 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.main_activity)
         if (savedInstanceState == null) {
             supportFragmentManager.beginTransaction()
-                    .replace(R.id.container, ExampleFragment.newInstance())
-                    .commitNow()
+                .replace(R.id.container, ExampleFragment.newInstance())
+                .commitNow()
         }
     }
 }

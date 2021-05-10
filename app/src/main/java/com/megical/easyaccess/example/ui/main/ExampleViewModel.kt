@@ -38,16 +38,16 @@ class ExampleViewModel : ViewModel() {
         MutableLiveData<Metadata>()
     }
 
-    private val state: MutableLiveData<String> by lazy {
-        MutableLiveData<String>()
+    private val state: MutableLiveData<State> by lazy {
+        MutableLiveData<State>()
     }
 
     private val clientData: MutableLiveData<ClientData> by lazy {
         MutableLiveData<ClientData>()
     }
 
-    private val authentication: MutableLiveData<Authentication> by lazy {
-        MutableLiveData<Authentication>()
+    private val loginData: MutableLiveData<LoginData> by lazy {
+        MutableLiveData<LoginData>()
     }
 
     private var authorizationService: MegicalAuthApi.AuthorizationService? = null
@@ -146,9 +146,9 @@ class ExampleViewModel : ViewModel() {
                 audience,
                 REDIRECT_URL)
 
-            authorizationService!!.authenticate(object : MegicalCallback<Authentication> {
-                override fun onSuccess(response: Authentication) {
-                    authentication.postValue(response)
+            authorizationService!!.initAuthentication(object : MegicalCallback<LoginData> {
+                override fun onSuccess(response: LoginData) {
+                    loginData.postValue(response)
                     viewState.postValue(ViewState.WaitLoginData)
                 }
 
@@ -174,8 +174,8 @@ class ExampleViewModel : ViewModel() {
         return clientData
     }
 
-    fun getAuthentication(): LiveData<Authentication> {
-        return authentication
+    fun getAuthentication(): LiveData<LoginData> {
+        return loginData
     }
 
     fun getTokenSet(): LiveData<TokenSet> {
@@ -183,7 +183,7 @@ class ExampleViewModel : ViewModel() {
     }
 
     fun verify() {
-        authorizationService!!.verify(
+        authorizationService!!.verifyAuthentication(
             object : MegicalCallback<TokenSet> {
                 override fun onSuccess(response: TokenSet) {
                     tokenSet.postValue(response)
@@ -201,13 +201,13 @@ class ExampleViewModel : ViewModel() {
         return metadata
     }
 
-    fun getState(): LiveData<String> {
+    fun getState(): LiveData<State> {
         return state
     }
 
     fun fetchMetadata() {
         viewState.postValue(ViewState.Easyaccess)
-        val loginCode = authentication.value!!.loginCode
+        val loginCode = loginData.value!!.loginCode
         authorizationService!!.metadata(loginCode, object : MegicalCallback<Metadata> {
             override fun onSuccess(response: Metadata) {
                 metadata.postValue(response)
@@ -221,10 +221,10 @@ class ExampleViewModel : ViewModel() {
     }
 
     fun fetchState() {
-        val loginCode = authentication.value!!.loginCode
+        val loginCode = loginData.value!!.loginCode
         authorizationService!!.state(loginCode, object : MegicalCallback<State> {
             override fun onSuccess(response: State) {
-                state.postValue(response.state)
+                state.postValue(response)
             }
 
             override fun onFailure(error: MegicalException) {

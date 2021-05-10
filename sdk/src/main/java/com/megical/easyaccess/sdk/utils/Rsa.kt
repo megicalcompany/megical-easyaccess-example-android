@@ -54,7 +54,6 @@ internal class Rsa {
             .generateKeyPair()
 
     companion object {
-        private const val PURPOSES =
-            KeyProperties.PURPOSE_VERIFY or KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_DECRYPT or KeyProperties.PURPOSE_ENCRYPT
+        private const val PURPOSES = KeyProperties.PURPOSE_SIGN
     }
 }

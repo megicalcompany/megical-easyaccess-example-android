@@ -11,7 +11,7 @@ internal interface AuthApi {
     @GET
     fun discover(
         @Url discoveryUrl: String,
-    ): Call<Issuer>
+    ): Call<IssuerResponse>
 
     @GET
     fun jwks(
@@ -30,7 +30,7 @@ internal interface AuthApi {
     ): Call<Void>
 
     @GET
-    fun authentication(
+    fun authorize(
         @Url authUrl: String,
         @Query("client_id") clientId: String,
         @Query("redirect_uri") redirectUri: String,
@@ -41,12 +41,12 @@ internal interface AuthApi {
         @Query("scope") scope: String = "openid",
         @Query("response_type") responseType: String = "code",
         @Query("code_challenge_method") codeChallengeMethod: String = "S256",
-    ): Call<AuthorizationResponse>
+    ): Call<AuthorizeResponse>
 
     @POST
     fun verify(
         @Url verifyUrl: String,
-        @Body verifyAuthRequest: VerifyAuthRequest,
+        @Body verifyRequest: VerifyRequest,
     ): Call<String>
 
     @FormUrlEncoded
@@ -63,13 +63,7 @@ internal interface AuthApi {
     ): Call<TokenResponse>
 
     @JsonClass(generateAdapter = true)
-    data class AuthenticationInitializationData(
-        val challenge: Base64,
-        val sessionId: String,
-    )
-
-    @JsonClass(generateAdapter = true)
-    data class AuthorizationResponse(
+    data class AuthorizeResponse(
         val loginCode: String,
         val sessionId: UUID,
         val lang: String?,
@@ -89,7 +83,7 @@ internal interface AuthApi {
     )
 
     @JsonClass(generateAdapter = true)
-    data class VerifyAuthRequest(
+    data class VerifyRequest(
         val sessionId: UUID,
         val redirect: Boolean = false,
     )
@@ -109,7 +103,7 @@ internal interface AuthApi {
     )
 
     @JsonClass(generateAdapter = true)
-    data class Issuer(
+    data class IssuerResponse(
         @Json(name = "issuer") val issuer: String,
         @Json(name = "authorization_endpoint") val authorizationEndpoint: String,
         @Json(name = "token_endpoint") val tokenEndpoint: String,

@@ -7,7 +7,7 @@ data class Client(
     val secret: String,
 )
 
-data class Authentication(
+data class LoginData(
     val loginCode: String,
     val appLink: Uri,
     val lang: String?,
@@ -35,6 +35,11 @@ data class Translation(
     val value: String,
 )
 
-data class State(
-    val state: String,
-)
+enum class State(val value: String) {
+    Init("init"),
+    Started("started"),
+    Updated("updated"),
+    Debug("debug"),
+    Unknown("unknown")
+}
+

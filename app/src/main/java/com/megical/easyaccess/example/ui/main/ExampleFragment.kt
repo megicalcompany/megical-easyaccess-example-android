@@ -13,6 +13,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.google.zxing.WriterException
 import com.megical.easyaccess.example.R
 import com.megical.easyaccess.example.SettingsRepository
+import com.megical.easyaccess.sdk.State
 import kotlinx.android.synthetic.main.main_fragment.*
 import timber.log.Timber
 
@@ -100,11 +101,11 @@ class ExampleFragment : Fragment() {
             exampleViewModel.authenticate()
         }
 
-        exampleViewModel.getTokenSet().observe(this, {
-            subjectMessage.text = it.sub
+        exampleViewModel.getTokenSet().observe(this, { tokenSet ->
+            subjectMessage.text = tokenSet.sub
 
             // Fetch message from playground with access token
-            exampleViewModel.hello(it.accessToken).observe(this, { helloResponse ->
+            exampleViewModel.hello(tokenSet.accessToken).observe(this, { helloResponse ->
                 helloResponse?.let {
                     backendMessage.text = "Hello: ${it.hello}"
                 }
@@ -131,15 +132,20 @@ class ExampleFragment : Fragment() {
         })
 
         exampleViewModel.getState().observe(this, {
-            stateMessage.text = it
+            stateMessage.text = it.value
             when (it) {
-                "updated" -> {
+                State.Updated -> {
                     exampleViewModel.verify()
                 }
-                else -> {
+                State.Init,
+                State.Started,
+                -> {
                     Handler().postDelayed({
                         exampleViewModel.fetchState()
                     }, 5000)
+                }
+                else -> {
+                    Timber.e("Unhandled state")
                 }
             }
         })

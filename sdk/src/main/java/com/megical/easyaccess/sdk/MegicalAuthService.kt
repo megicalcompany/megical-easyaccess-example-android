@@ -1,7 +1,6 @@
 package com.megical.easyaccess.sdk
 
 import android.net.Uri
-import android.security.keystore.KeyProperties
 import com.megical.easyaccess.sdk.api.AuthApi
 import com.megical.easyaccess.sdk.api.AuthApi.*
 import com.megical.easyaccess.sdk.api.EasyAccessApi
@@ -28,7 +27,7 @@ import retrofit2.Callback as RetrofitCallback
 
 private const val AUTH_BASE_URL = "https://auth-prod.megical.com/"
 
-class MegicalAuthApi() {
+class MegicalAuthApi {
     private val cookieJar = InMemoryCookieJar()
     private val retrofit = Retrofit.Builder()
         .client(
@@ -88,8 +87,7 @@ class MegicalAuthApi() {
             keyStore.deleteKey(appId)
             val keyPair = rsa.loadOrCreateKeyPair(
                 keyStore,
-                appId,
-                KeyProperties.PURPOSE_SIGN
+                appId
             )
             JsonWebKey.Factory.newJwk(keyPair.public).apply { use = "sig" }
         } catch (error: Exception) {
@@ -144,7 +142,7 @@ class MegicalAuthApi() {
         private val state: Base64UrlSafe = generateBase64UrlNonce()
         private val nonce: Base64UrlSafe = generateBase64UrlNonce()
         private var sessionId: UUID? = null
-        private var issuer: Issuer? = null
+        private var issuer: IssuerResponse? = null
 
         init {
             cookieJar.clear()
@@ -152,10 +150,10 @@ class MegicalAuthApi() {
 
         fun metadata(loginCode: String, callback: Callback<Metadata>) {
             easyAccessApi.metadata("$authEnvUrl/api/v1/easyaccess/metadata/${loginCode}")
-                .enqueue(object : RetrofitCallback<EasyAccessApi.Metadata> {
+                .enqueue(object : RetrofitCallback<EasyAccessApi.MetadataResponse> {
                     override fun onResponse(
-                        call: Call<EasyAccessApi.Metadata>,
-                        response: Response<EasyAccessApi.Metadata>,
+                        call: Call<EasyAccessApi.MetadataResponse>,
+                        response: Response<EasyAccessApi.MetadataResponse>,
                     ) {
                         validateResponse(response, callback::onFailure)?.let { body ->
                             callback.onSuccess(body.toMetadata())
@@ -163,7 +161,7 @@ class MegicalAuthApi() {
                     }
 
                     override fun onFailure(
-                        call: Call<EasyAccessApi.Metadata>,
+                        call: Call<EasyAccessApi.MetadataResponse>,
                         t: Throwable,
                     ) {
                         callback.onFailure(MetadataError(t))
@@ -173,18 +171,21 @@ class MegicalAuthApi() {
 
         fun state(loginCode: String, callback: Callback<State>) {
             easyAccessApi.state("$authEnvUrl/api/v1/easyaccess/state/${loginCode}")
-                .enqueue(object : RetrofitCallback<EasyAccessApi.State> {
+                .enqueue(object : RetrofitCallback<EasyAccessApi.StateResponse> {
                     override fun onResponse(
-                        call: Call<EasyAccessApi.State>,
-                        response: Response<EasyAccessApi.State>,
+                        call: Call<EasyAccessApi.StateResponse>,
+                        response: Response<EasyAccessApi.StateResponse>,
                     ) {
                         validateResponse(response, callback::onFailure)?.let { body ->
-                            callback.onSuccess(State(body.state))
+                            val state =
+                                State.values().firstOrNull { it.value == body.state }
+                                    ?: State.Unknown
+                            callback.onSuccess(state)
                         }
                     }
 
                     override fun onFailure(
-                        call: Call<EasyAccessApi.State>,
+                        call: Call<EasyAccessApi.StateResponse>,
                         t: Throwable,
                     ) {
                         callback.onFailure(StateError(t))
@@ -192,51 +193,12 @@ class MegicalAuthApi() {
                 })
         }
 
-
-        fun authorize(callback: Callback<Authentication>) {
-            val authConfig = issuer ?: return callback.onFailure(IssuerNullError())
-
-            authApi.authentication(
-                authUrl = authConfig.authorizationEndpoint,
-                clientId = clientId,
-                state = state.value,
-                nonce = nonce.value,
-                codeChallenge = codeVerifier.codeChallenge,
-                audience = audience.joinToString(" "),
-                redirectUri = redirectUrl
-            ).enqueue(object :
-                RetrofitCallback<AuthorizationResponse> {
-                override fun onResponse(
-                    call: Call<AuthorizationResponse>,
-                    response: Response<AuthorizationResponse>,
-                ) {
-                    validateResponse(response, callback::onFailure)?.let { body ->
-                        sessionId = body.sessionId
-                        callback.onSuccess(
-                            Authentication(
-                                loginCode = body.loginCode,
-                                appLink = easyAccessAppLink(body.loginCode),
-                                lang = body.lang
-                            )
-                        )
-                    }
-                }
-
-                override fun onFailure(
-                    call: Call<AuthorizationResponse>,
-                    t: Throwable,
-                ) {
-                    callback.onFailure(AuthenticationError(t))
-                }
-            })
-        }
-
-        fun authenticate(callback: Callback<Authentication>) {
+        fun initAuthentication(callback: Callback<LoginData>) {
             authApi.discover("${authEnvUrl}/.well-known/openid-configuration")
-                .enqueue(object : RetrofitCallback<Issuer> {
+                .enqueue(object : RetrofitCallback<IssuerResponse> {
                     override fun onResponse(
-                        call: Call<Issuer>,
-                        response: Response<Issuer>,
+                        call: Call<IssuerResponse>,
+                        response: Response<IssuerResponse>,
                     ) {
                         validateResponse(response, callback::onFailure)?.let { config ->
                             issuer = config
@@ -244,17 +206,17 @@ class MegicalAuthApi() {
                         }
                     }
 
-                    override fun onFailure(call: Call<Issuer>, t: Throwable) {
+                    override fun onFailure(call: Call<IssuerResponse>, t: Throwable) {
                         callback.onFailure(IssuerError(t))
                     }
                 })
         }
 
-        fun verify(callback: Callback<TokenSet>) {
+        fun verifyAuthentication(callback: Callback<TokenSet>) {
             val localSessionId = sessionId ?: return callback.onFailure(SessionIdNullError())
             authApi.verify(
                 "${authEnvUrl}/api/v1/auth/verifyEasyaccess",
-                VerifyAuthRequest(localSessionId, true)
+                VerifyRequest(localSessionId, true)
             ).enqueue(object : RetrofitCallback<String> {
                 override fun onResponse(
                     call: Call<String>,
@@ -282,7 +244,88 @@ class MegicalAuthApi() {
             })
         }
 
-        private fun jwks(
+        private fun authorize(callback: Callback<LoginData>) {
+            val authConfig = issuer ?: return callback.onFailure(IssuerNullError())
+
+            authApi.authorize(
+                authUrl = authConfig.authorizationEndpoint,
+                clientId = clientId,
+                state = state.value,
+                nonce = nonce.value,
+                codeChallenge = codeVerifier.codeChallenge,
+                audience = audience.joinToString(" "),
+                redirectUri = redirectUrl
+            ).enqueue(object :
+                RetrofitCallback<AuthorizeResponse> {
+                override fun onResponse(
+                    call: Call<AuthorizeResponse>,
+                    response: Response<AuthorizeResponse>,
+                ) {
+                    validateResponse(response, callback::onFailure)?.let { body ->
+                        sessionId = body.sessionId
+                        callback.onSuccess(
+                            LoginData(
+                                loginCode = body.loginCode,
+                                appLink = easyAccessAppLink(body.loginCode),
+                                lang = body.lang
+                            )
+                        )
+                    }
+                }
+
+                override fun onFailure(
+                    call: Call<AuthorizeResponse>,
+                    t: Throwable,
+                ) {
+                    callback.onFailure(AuthenticationError(t))
+                }
+            })
+        }
+
+        private fun tokenRequest(code: String, callback: Callback<TokenSet>) {
+            val keyPair = rsa.loadKeyPair(
+                keyStore,
+                appId
+            )
+
+            val authConfig = issuer ?: return callback.onFailure(
+                IssuerNullError())
+
+            val clientAssertion = createClientAssertion(
+                keyPair,
+                clientId,
+                authConfig.tokenEndpoint
+            )
+
+            authApi.tokenRequest(
+                grantType = "authorization_code",
+                clientAssertionType = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+                tokenUrl = authConfig.tokenEndpoint,
+                codeVerifier = codeVerifier.value,
+                code = code,
+                clientId = clientId,
+                redirectUri = redirectUrl,
+                clientAssertion = clientAssertion)
+                .enqueue(object : RetrofitCallback<TokenResponse> {
+                    override fun onResponse(
+                        call: Call<TokenResponse>,
+                        response: Response<TokenResponse>,
+                    ) {
+                        validateResponse(response, callback::onFailure)?.let { body ->
+                            val idToken = body.idToken
+                            val accessToken = body.accessToken
+
+                            fetchJwksAndValidateIdToken(idToken, accessToken, callback)
+                        }
+                    }
+
+                    override fun onFailure(call: Call<TokenResponse>, t: Throwable) {
+                        callback.onFailure(TokenError(t))
+                    }
+                })
+        }
+
+        private fun fetchJwksAndValidateIdToken(
             idToken: String,
             accessToken: String,
             callback: Callback<TokenSet>,
@@ -319,75 +362,6 @@ class MegicalAuthApi() {
                     }
                 })
         }
-
-        private fun tokenRequest(code: String, callback: Callback<TokenSet>) {
-            val keyPair = rsa.loadKeyPair(
-                keyStore,
-                appId
-            )
-
-            val authConfig = issuer ?: return callback.onFailure(
-                IssuerNullError())
-
-            val clientAssertion = createClientAssertion(
-                keyPair,
-                clientId,
-                authConfig.tokenEndpoint
-            )
-
-            authApi.tokenRequest(
-                grantType = "authorization_code",
-                clientAssertionType = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
-                tokenUrl = authConfig.tokenEndpoint,
-                codeVerifier = codeVerifier.value,
-                code = code,
-                clientId = clientId,
-                redirectUri = redirectUrl,
-                clientAssertion = clientAssertion)
-                .enqueue(object : RetrofitCallback<TokenResponse> {
-                    override fun onResponse(
-                        call: Call<TokenResponse>,
-                        response: Response<TokenResponse>,
-                    ) {
-                        validateResponse(response, callback::onFailure)?.let { body ->
-                            val idToken = body.idToken
-                            val accessToken = body.accessToken
-
-                            jwks(idToken, accessToken, callback)
-                        }
-                    }
-
-                    override fun onFailure(call: Call<TokenResponse>, t: Throwable) {
-                        callback.onFailure(TokenError(t))
-                    }
-                })
-        }
-
-        private fun createClientAssertion(
-            keyPair: KeyPair,
-            clientId: String,
-            tokenEndpoint: String,
-        ): String =
-            JwtClaims()
-                .apply {
-                    issuer = clientId
-                    subject = clientId
-                    audience = listOf(tokenEndpoint)
-//              https://github.com/dgrijalva/jwt-go/issues/314
-//                setIssuedAtToNow()
-                    setGeneratedJwtId()
-                    setExpirationTimeMinutesInTheFuture(10f)
-                }
-                .let { claims ->
-                    JsonWebSignature()
-                        .apply {
-                            payload = claims.toJson()
-                            key = keyPair.private
-                            keyIdHeaderValue = clientId
-                            algorithmHeaderValue = AlgorithmIdentifiers.RSA_USING_SHA256
-                        }
-                }
-                .compactSerialization
 
         /**
          * OpenID Connect Core 1.0 incorporating errata set 1
@@ -482,6 +456,33 @@ class MegicalAuthApi() {
 
             return jwtContext
         }
+
+        private fun createClientAssertion(
+            keyPair: KeyPair,
+            clientId: String,
+            tokenEndpoint: String,
+        ): String =
+            JwtClaims()
+                .apply {
+                    issuer = clientId
+                    subject = clientId
+                    audience = listOf(tokenEndpoint)
+//              https://github.com/dgrijalva/jwt-go/issues/314
+//                setIssuedAtToNow()
+                    setGeneratedJwtId()
+                    setExpirationTimeMinutesInTheFuture(10f)
+                }
+                .let { claims ->
+                    JsonWebSignature()
+                        .apply {
+                            payload = claims.toJson()
+                            key = keyPair.private
+                            keyIdHeaderValue = clientId
+                            algorithmHeaderValue = AlgorithmIdentifiers.RSA_USING_SHA256
+                        }
+                }
+                .compactSerialization
+
     }
 
     private fun easyAccessAppLink(loginCode: String): Uri =
@@ -493,7 +494,7 @@ class MegicalAuthApi() {
     }
 
 
-    private fun EasyAccessApi.Metadata.toMetadata(): Metadata {
+    private fun EasyAccessApi.MetadataResponse.toMetadata(): Metadata {
         return Metadata(defaultLang = this.defaultLang,
             langs = this.langs,
             values = this.values.map { mv ->

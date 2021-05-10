@@ -9,18 +9,23 @@ internal interface EasyAccessApi {
     @GET
     fun metadata(
         @Url url: String,
-    ): Call<Metadata>
+    ): Call<MetadataResponse>
 
     @GET
     fun state(
         @Url url: String,
-    ): Call<State>
+    ): Call<StateResponse>
 
     @JsonClass(generateAdapter = true)
-    data class Metadata(
+    data class MetadataResponse(
         val defaultLang: String,
         val langs: List<String>,
         val values: List<MetadataValue>,
+    )
+
+    @JsonClass(generateAdapter = true)
+    data class StateResponse(
+        val state: String,
     )
 
     @JsonClass(generateAdapter = true)
@@ -33,11 +38,6 @@ internal interface EasyAccessApi {
     data class Translation(
         val lang: String,
         val value: String,
-    )
-
-    @JsonClass(generateAdapter = true)
-    data class State(
-        val state: String,
     )
 
 }
