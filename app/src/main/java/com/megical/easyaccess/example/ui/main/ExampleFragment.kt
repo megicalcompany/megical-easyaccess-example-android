@@ -84,8 +84,11 @@ class ExampleFragment : Fragment() {
         })
 
         registerButton.setOnClickListener {
+
             registerTokenInput.text?.toString()
-                ?.let { exampleViewModel.registerClient(it) }
+                ?.let {
+                    exampleViewModel.registerClient(it)
+                }
         }
 
         logoutButton.setOnClickListener {

@@ -88,6 +88,7 @@ data class OpenIdClientDataResponse(
     val clientToken: UUID,
     val url: String,
     val authEnvUrl: String,
+    val authEnv: String,
     val redirectUrls: List<String>,
     val appId: String,
     val audience: List<String>,

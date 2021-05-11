@@ -95,18 +95,24 @@ class ExampleViewModel : ViewModel() {
     private fun registerClient(
         openIdClientData: OpenIdClientDataResponse,
     ) {
+        val deviceId = UUID.randomUUID().toString()
+        if (!openIdClientData.redirectUrls.contains(REDIRECT_URL)) {
+            Timber.e("Invalid redirect url")
+            return viewState.postValue(ViewState.RegisterClient)
+        }
         megicalAuthApi.client(
             openIdClientData.url, openIdClientData.clientToken,
-            "${UUID.randomUUID()}", openIdClientData.appId,
+            deviceId, openIdClientData.appId,
             object : MegicalCallback<Client> {
                 override fun onSuccess(response: Client) {
                     setClientData(
                         ClientData(
-                            openIdClientData.appId,
-                            response.clientId,
-                            openIdClientData.audience,
-                            openIdClientData.authEnvUrl,
-                            openIdClientData.url
+                            clientId = response.clientId,
+                            appId = openIdClientData.appId,
+                            audience = openIdClientData.audience,
+                            authEnvUrl = openIdClientData.authEnvUrl,
+                            clientUrl = openIdClientData.url,
+                            authEnv = openIdClientData.authEnv,
                         )
                     )
                     viewState.postValue(ViewState.Authenticate)
@@ -139,8 +145,10 @@ class ExampleViewModel : ViewModel() {
     }
 
     fun authenticate() {
-        getClientData().value?.let { (appId, clientId, audience, authEnvUrl) ->
-            authorizationService = megicalAuthApi.AuthorizationService(authEnvUrl,
+        getClientData().value?.let { (clientId, appId, audience, authEnvUrl, _, authEnv) ->
+            authorizationService = megicalAuthApi.AuthorizationService(
+                authEnv,
+                authEnvUrl,
                 appId,
                 clientId,
                 audience,

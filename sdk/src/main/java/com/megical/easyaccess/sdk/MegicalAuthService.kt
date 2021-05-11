@@ -132,6 +132,7 @@ class MegicalAuthApi {
     }
 
     inner class AuthorizationService(
+        private val authEnv: String,
         private val authEnvUrl: String,
         private val appId: String,
         private val clientId: String,
@@ -229,9 +230,26 @@ class MegicalAuthApi {
                         val headers = response.headers()
                         val location = headers["Location"]
 
-                        val uri = Uri.parse(location)
-                        val code = uri.getQueryParameter("code")!!
+                        // https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2
+                        // validate callback url, code and state
 
+                        val uri = Uri.parse(location)
+                        val redirectUri = Uri.parse(redirectUrl)
+
+                        if (uri.scheme != redirectUri.scheme
+                            || (redirectUri.authority != null && uri.authority != redirectUri.authority)
+                            || uri.path != redirectUri.path
+                        ) {
+                            throw InvalidCallbackError()
+                        }
+
+                        val returnState = uri.getQueryParameter("state")
+
+                        if (returnState != state.value) {
+                            throw InvalidStateError()
+                        }
+
+                        val code = uri.getQueryParameter("code") ?: throw CodeNotFoundError()
                         tokenRequest(code, callback)
                     } catch (error: Exception) {
                         callback.onFailure(VerifyError(error))
@@ -483,10 +501,10 @@ class MegicalAuthApi {
                 }
                 .compactSerialization
 
-    }
+        private fun easyAccessAppLink(loginCode: String): Uri =
+            Uri.parse("com.megical.easyaccess:/auth?loginCode=$loginCode&authEnv=$authEnv")
 
-    private fun easyAccessAppLink(loginCode: String): Uri =
-        Uri.parse("com.megical.easyaccess:/auth?loginCode=$loginCode")
+    }
 
     interface Callback<T> {
         fun onSuccess(response: T)

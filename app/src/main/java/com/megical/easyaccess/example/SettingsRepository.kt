@@ -55,9 +55,10 @@ class SettingsRepository(context: Context) {
 
 @JsonClass(generateAdapter = true)
 data class ClientData(
-    val appId: String,
     val clientId: String,
+    val appId: String,
     val audience: List<String>,
     val authEnvUrl: String,
     val clientUrl: String,
+    val authEnv: String,
 )
