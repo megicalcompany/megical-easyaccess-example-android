@@ -15,7 +15,10 @@ data class LoginData(
 
 data class TokenSet(
     val accessToken: String,
+    val expiresIn: Int,
     val idToken: String,
+    val scope: String,
+    val tokenType: String,
     val sub: String,
 )
 

@@ -101,8 +101,10 @@ class ExampleViewModel : ViewModel() {
             return viewState.postValue(ViewState.RegisterClient)
         }
         megicalAuthApi.client(
-            openIdClientData.url, openIdClientData.clientToken,
-            deviceId, openIdClientData.appId,
+            openIdClientData.authEnvUrl,
+            openIdClientData.clientToken,
+            deviceId,
+            openIdClientData.appId,
             object : MegicalCallback<Client> {
                 override fun onSuccess(response: Client) {
                     setClientData(
@@ -111,7 +113,6 @@ class ExampleViewModel : ViewModel() {
                             appId = openIdClientData.appId,
                             audience = openIdClientData.audience,
                             authEnvUrl = openIdClientData.authEnvUrl,
-                            clientUrl = openIdClientData.url,
                             authEnv = openIdClientData.authEnv,
                         )
                     )
@@ -122,13 +123,15 @@ class ExampleViewModel : ViewModel() {
                     Timber.e(error)
                     viewState.postValue(ViewState.RegisterClient)
                 }
-            })
+            }
+        )
     }
 
 
     fun deregisterClient() {
         clientData.value?.let {
-            megicalAuthApi.deleteClient(it.clientUrl,
+            megicalAuthApi.deleteClient(
+                it.authEnvUrl,
                 it.clientId,
                 object : MegicalCallback<Unit> {
                     override fun onSuccess(response: Unit) {
@@ -145,13 +148,13 @@ class ExampleViewModel : ViewModel() {
     }
 
     fun authenticate() {
-        getClientData().value?.let { (clientId, appId, audience, authEnvUrl, _, authEnv) ->
+        getClientData().value?.let { clientData ->
             authorizationService = megicalAuthApi.AuthorizationService(
-                authEnv,
-                authEnvUrl,
-                appId,
-                clientId,
-                audience,
+                clientData.authEnv,
+                clientData.authEnvUrl,
+                clientData.appId,
+                clientData.clientId,
+                clientData.audience,
                 REDIRECT_URL)
 
             authorizationService!!.initAuthentication(object : MegicalCallback<LoginData> {

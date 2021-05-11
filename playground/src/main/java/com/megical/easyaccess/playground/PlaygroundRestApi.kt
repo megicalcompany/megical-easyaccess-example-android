@@ -86,7 +86,6 @@ data class HelloResponse(
 @JsonClass(generateAdapter = true)
 data class OpenIdClientDataResponse(
     val clientToken: UUID,
-    val url: String,
     val authEnvUrl: String,
     val authEnv: String,
     val redirectUrls: List<String>,

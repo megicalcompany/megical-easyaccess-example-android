@@ -59,6 +59,5 @@ data class ClientData(
     val appId: String,
     val audience: List<String>,
     val authEnvUrl: String,
-    val clientUrl: String,
     val authEnv: String,
 )

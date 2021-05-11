@@ -77,7 +77,7 @@ class MegicalAuthApi {
     }
 
     fun client(
-        url: String,
+        authEnvUrl: String,
         clientToken: UUID,
         deviceId: String,
         appId: String,
@@ -94,7 +94,7 @@ class MegicalAuthApi {
             return callback.onFailure(CouldNotCreateKeyError(error))
         }
 
-        authApi.client(url, ClientRequest(clientToken, deviceId, key))
+        authApi.client("$authEnvUrl/api/v1/client", ClientRequest(clientToken, deviceId, key))
             .enqueue(object : RetrofitCallback<ClientResponse> {
                 override fun onResponse(
                     call: Call<ClientResponse>,
@@ -114,8 +114,8 @@ class MegicalAuthApi {
             })
     }
 
-    fun deleteClient(url: String, clientId: String, callback: Callback<Unit>) {
-        authApi.deleteClient("${url}/${clientId}").enqueue(object :
+    fun deleteClient(authEnvUrl: String, clientId: String, callback: Callback<Unit>) {
+        authApi.deleteClient("$authEnvUrl/api/v1/client/$clientId").enqueue(object :
             retrofit2.Callback<Void> {
             override fun onResponse(call: Call<Void>, response: Response<Void>) {
                 if (response.isSuccessful) {
@@ -330,10 +330,7 @@ class MegicalAuthApi {
                         response: Response<TokenResponse>,
                     ) {
                         validateResponse(response, callback::onFailure)?.let { body ->
-                            val idToken = body.idToken
-                            val accessToken = body.accessToken
-
-                            fetchJwksAndValidateIdToken(idToken, accessToken, callback)
+                            fetchJwksAndValidateIdToken(body, callback)
                         }
                     }
 
@@ -344,8 +341,7 @@ class MegicalAuthApi {
         }
 
         private fun fetchJwksAndValidateIdToken(
-            idToken: String,
-            accessToken: String,
+            token: TokenResponse,
             callback: Callback<TokenSet>,
         ) {
             val authConfig = issuer ?: return callback.onFailure(IssuerNullError())
@@ -357,7 +353,7 @@ class MegicalAuthApi {
                     ) {
                         validateResponse(response, callback::onFailure)?.let { jsonWebKeySet ->
                             val jwtContext = try {
-                                validateIdToken(idToken, jsonWebKeySet)
+                                validateIdToken(token.idToken, jsonWebKeySet)
                             } catch (e: IdTokenValidationError) {
                                 return callback.onFailure(e)
                             } catch (e: Exception) {
@@ -365,9 +361,12 @@ class MegicalAuthApi {
                             }
 
                             callback.onSuccess(TokenSet(
-                                accessToken,
-                                idToken,
-                                jwtContext.jwtClaims.subject)
+                                accessToken = token.accessToken,
+                                expiresIn = token.expiresIn,
+                                idToken = token.idToken,
+                                scope = token.scope,
+                                tokenType = token.tokenType,
+                                sub = jwtContext.jwtClaims.subject)
                             )
                         }
                     }
