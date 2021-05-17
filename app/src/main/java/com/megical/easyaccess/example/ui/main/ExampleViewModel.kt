@@ -1,15 +1,12 @@
 package com.megical.easyaccess.example.ui.main
 
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.liveData
+import androidx.lifecycle.*
 import com.megical.easyaccess.example.ClientData
 import com.megical.easyaccess.playground.OpenIdClientDataResponse
 import com.megical.easyaccess.playground.PlaygroundRestApi
 import com.megical.easyaccess.sdk.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.*
 import com.megical.easyaccess.sdk.MegicalAuthApi.Callback as MegicalCallback
@@ -19,10 +16,9 @@ const val REDIRECT_URL = "com.megical.ea.example:/oauth-callback"
 enum class ViewState {
     RegisterClient,
     Loading,
-    WaitLoginData,
     Authenticate,
-    Hello,
-    Easyaccess
+    EasyAccess,
+    LoggedIn,
 }
 
 class ExampleViewModel : ViewModel() {
@@ -38,8 +34,8 @@ class ExampleViewModel : ViewModel() {
         MutableLiveData<Metadata>()
     }
 
-    private val state: MutableLiveData<State> by lazy {
-        MutableLiveData<State>()
+    private val loginState: MutableLiveData<LoginState> by lazy {
+        MutableLiveData<LoginState>()
     }
 
     private val clientData: MutableLiveData<ClientData> by lazy {
@@ -49,8 +45,6 @@ class ExampleViewModel : ViewModel() {
     private val loginData: MutableLiveData<LoginData> by lazy {
         MutableLiveData<LoginData>()
     }
-
-    private var authorizationService: MegicalAuthApi.AuthorizationService? = null
 
     private val tokenSet: MutableLiveData<TokenSet> by lazy {
         MutableLiveData<TokenSet>()
@@ -69,43 +63,33 @@ class ExampleViewModel : ViewModel() {
         }
     }
 
-    fun registerClient(token: String) = runBlocking(Dispatchers.IO) {
+    fun createClient(token: String) = viewModelScope.launch(Dispatchers.IO) {
         try {
-            val uuidToken = UUID.fromString(token)
             viewState.postValue(ViewState.Loading)
+            val uuidToken = UUID.fromString(token)
             val openIdClientData = playgroundRestApi.openIdClientData(uuidToken)
-            registerClient(openIdClientData)
+            registerClientWithAuthServer(openIdClientData)
         } catch (error: Exception) {
             Timber.e(error)
             viewState.postValue(ViewState.RegisterClient)
         }
     }
 
-
-    fun hello(accessToken: String) = liveData(Dispatchers.IO) {
-        try {
-            emit(playgroundRestApi.hello(accessToken))
-        } catch (error: Exception) {
-            Timber.e(error)
-            viewState.postValue(ViewState.Authenticate)
-            emit(null)
-        }
-    }
-
-    private fun registerClient(
+    private fun registerClientWithAuthServer(
         openIdClientData: OpenIdClientDataResponse,
     ) {
-        val deviceId = UUID.randomUUID().toString()
         if (!openIdClientData.redirectUrls.contains(REDIRECT_URL)) {
             Timber.e("Invalid redirect url")
             return viewState.postValue(ViewState.RegisterClient)
         }
-        megicalAuthApi.client(
-            openIdClientData.authEnvUrl,
-            openIdClientData.clientToken,
+        val deviceId = UUID.randomUUID().toString()
+        val (clientToken, authEnvUrl, _, _, appId, _) = openIdClientData
+        megicalAuthApi.registerClient(
+            authEnvUrl,
+            clientToken,
             deviceId,
-            openIdClientData.appId,
-            object : MegicalCallback<Client> {
+            keyId = appId,
+            callback = object : MegicalCallback<Client> {
                 override fun onSuccess(response: Client) {
                     setClientData(
                         ClientData(
@@ -116,7 +100,6 @@ class ExampleViewModel : ViewModel() {
                             authEnv = openIdClientData.authEnv,
                         )
                     )
-                    viewState.postValue(ViewState.Authenticate)
                 }
 
                 override fun onFailure(error: MegicalException) {
@@ -127,12 +110,120 @@ class ExampleViewModel : ViewModel() {
         )
     }
 
+    fun getClientData(): LiveData<ClientData> {
+        return clientData
+    }
+
+    fun setClientData(value: ClientData) {
+        clientData.postValue(value)
+        viewState.postValue(ViewState.Authenticate)
+    }
+
+    fun getAuthentication(): LiveData<LoginData> {
+        return loginData
+    }
+
+    fun authenticate() {
+        getClientData().value!!.let { clientData ->
+            viewState.postValue(ViewState.Loading)
+            megicalAuthApi.initAuthentication(
+                clientData.authEnv,
+                clientData.authEnvUrl,
+                clientData.appId,
+                clientData.clientId,
+                clientData.audience,
+                REDIRECT_URL,
+                object : MegicalCallback<LoginData> {
+                    override fun onSuccess(response: LoginData) {
+                        loginData.postValue(response)
+                    }
+
+                    override fun onFailure(error: MegicalException) {
+                        Timber.e(error)
+                        viewState.postValue(ViewState.Authenticate)
+                    }
+                })
+        }
+    }
+
+    fun getMetadata(): LiveData<Metadata> {
+        return metadata
+    }
+
+    fun fetchMetadata() {
+        viewState.postValue(ViewState.Loading)
+        val loginCode = loginData.value!!.loginCode
+        megicalAuthApi.metadata(loginCode, object : MegicalCallback<Metadata> {
+            override fun onSuccess(response: Metadata) {
+                metadata.postValue(response)
+                viewState.postValue(ViewState.EasyAccess)
+            }
+
+            override fun onFailure(error: MegicalException) {
+                Timber.e(error)
+            }
+        })
+    }
+
+    fun getLoginState(): LiveData<LoginState> {
+        return loginState
+    }
+
+    fun fetchLoginState() {
+        val loginCode = loginData.value!!.loginCode
+        megicalAuthApi.state(loginCode, object : MegicalCallback<LoginState> {
+            override fun onSuccess(response: LoginState) {
+                loginState.postValue(response)
+            }
+
+            override fun onFailure(error: MegicalException) {
+                Timber.e(error)
+                viewState.postValue(ViewState.Authenticate)
+            }
+        })
+    }
+
+    fun getTokenSet(): LiveData<TokenSet> {
+        return tokenSet
+    }
+
+    fun verifyLoginData() {
+        viewModelScope.launch(Dispatchers.IO) {
+            megicalAuthApi.verifyAuthentication(
+                object : MegicalCallback<TokenSet> {
+                    override fun onSuccess(response: TokenSet) {
+                        tokenSet.postValue(response)
+                    }
+
+                    override fun onFailure(error: MegicalException) {
+                        Timber.e(error)
+                        viewState.postValue(ViewState.Authenticate)
+                    }
+                })
+        }
+    }
+
+    fun fetchMessageFromTestService(accessToken: String) = liveData(Dispatchers.IO) {
+        try {
+            emit(playgroundRestApi.hello(accessToken))
+            viewState.postValue(ViewState.LoggedIn)
+        } catch (error: Exception) {
+            Timber.e(error)
+            viewState.postValue(ViewState.Authenticate)
+            emit(null)
+        }
+    }
+
+    fun logout() {
+        viewState.postValue(ViewState.Authenticate)
+    }
 
     fun deregisterClient() {
         clientData.value?.let {
             megicalAuthApi.deleteClient(
                 it.authEnvUrl,
                 it.clientId,
+                it.appId,
                 object : MegicalCallback<Unit> {
                     override fun onSuccess(response: Unit) {
                         Timber.i("Client deleted")
@@ -145,103 +236,5 @@ class ExampleViewModel : ViewModel() {
         }
         clientData.postValue(null)
         viewState.postValue(ViewState.RegisterClient)
-    }
-
-    fun authenticate() {
-        getClientData().value?.let { clientData ->
-            authorizationService = megicalAuthApi.AuthorizationService(
-                clientData.authEnv,
-                clientData.authEnvUrl,
-                clientData.appId,
-                clientData.clientId,
-                clientData.audience,
-                REDIRECT_URL)
-
-            authorizationService!!.initAuthentication(object : MegicalCallback<LoginData> {
-                override fun onSuccess(response: LoginData) {
-                    loginData.postValue(response)
-                    viewState.postValue(ViewState.WaitLoginData)
-                }
-
-                override fun onFailure(error: MegicalException) {
-                    Timber.e(error)
-                    viewState.postValue(ViewState.Authenticate)
-                }
-            })
-            viewState.postValue(ViewState.Loading)
-        }
-    }
-
-    fun logout() {
-        viewState.postValue(ViewState.Authenticate)
-    }
-
-    fun setClientData(value: ClientData) {
-        clientData.postValue(value)
-        viewState.postValue(ViewState.Authenticate)
-    }
-
-    fun getClientData(): LiveData<ClientData> {
-        return clientData
-    }
-
-    fun getAuthentication(): LiveData<LoginData> {
-        return loginData
-    }
-
-    fun getTokenSet(): LiveData<TokenSet> {
-        return tokenSet
-    }
-
-    fun verify() {
-        authorizationService!!.verifyAuthentication(
-            object : MegicalCallback<TokenSet> {
-                override fun onSuccess(response: TokenSet) {
-                    tokenSet.postValue(response)
-                    viewState.postValue(ViewState.Hello)
-                }
-
-                override fun onFailure(error: MegicalException) {
-                    Timber.e(error)
-                    viewState.postValue(ViewState.Authenticate)
-                }
-            })
-    }
-
-    fun getMetadata(): LiveData<Metadata> {
-        return metadata
-    }
-
-    fun getState(): LiveData<State> {
-        return state
-    }
-
-    fun fetchMetadata() {
-        viewState.postValue(ViewState.Easyaccess)
-        val loginCode = loginData.value!!.loginCode
-        authorizationService!!.metadata(loginCode, object : MegicalCallback<Metadata> {
-            override fun onSuccess(response: Metadata) {
-                metadata.postValue(response)
-            }
-
-            override fun onFailure(error: MegicalException) {
-                Timber.e(error)
-                viewState.postValue(ViewState.Authenticate)
-            }
-        })
-    }
-
-    fun fetchState() {
-        val loginCode = loginData.value!!.loginCode
-        authorizationService!!.state(loginCode, object : MegicalCallback<State> {
-            override fun onSuccess(response: State) {
-                state.postValue(response)
-            }
-
-            override fun onFailure(error: MegicalException) {
-                Timber.e(error)
-                viewState.postValue(ViewState.Authenticate)
-            }
-        })
     }
 }

@@ -38,7 +38,7 @@ data class Translation(
     val value: String,
 )
 
-enum class State(val value: String) {
+enum class LoginState(val value: String) {
     Init("init"),
     Started("started"),
     Updated("updated"),

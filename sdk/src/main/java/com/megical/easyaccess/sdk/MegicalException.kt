@@ -21,3 +21,7 @@ class JwksError(cause: Throwable) : MegicalException("Error fetching jwks from s
 class InvalidStateError : MegicalException("Invalid state returned from auth-service")
 class CodeNotFoundError : MegicalException("Empty code returned from auth-service")
 class InvalidCallbackError : MegicalException("Callback url didn't match redirect url")
+class StateNullError : MegicalException("oauth state null")
+class NonceNullError : MegicalException("oauth nonce null")
+class CodeVerifierNullError : MegicalException("codeVerifier null")
+class AuthStateNullError : MegicalException("initAuthentication not called")

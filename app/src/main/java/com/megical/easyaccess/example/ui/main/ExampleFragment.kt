@@ -3,6 +3,7 @@ package com.megical.easyaccess.example.ui.main
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -13,7 +14,8 @@ import androidx.lifecycle.ViewModelProvider
 import com.google.zxing.WriterException
 import com.megical.easyaccess.example.R
 import com.megical.easyaccess.example.SettingsRepository
-import com.megical.easyaccess.sdk.State
+import com.megical.easyaccess.sdk.LoginData
+import com.megical.easyaccess.sdk.LoginState
 import kotlinx.android.synthetic.main.main_fragment.*
 import timber.log.Timber
 
@@ -28,7 +30,7 @@ class ExampleFragment : Fragment() {
         fun newInstance() = ExampleFragment()
     }
 
-    private lateinit var exampleViewModel: ExampleViewModel
+    private lateinit var viewModel: ExampleViewModel
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -39,28 +41,29 @@ class ExampleFragment : Fragment() {
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
-        exampleViewModel = ViewModelProvider(this).get(ExampleViewModel::class.java)
+        viewModel = ViewModelProvider(this).get(ExampleViewModel::class.java)
 
-        exampleViewModel.getHealthcheck().observe(this, {
-            healthcheckTextView.text = "Playground running"
+        viewModel.getHealthcheck().observe(this, {
+            if (it != null) {
+                healthcheckTextView.text = "Playground running"
+            } else {
+                healthcheckTextView.text = "Playground not running!"
+            }
         })
 
         prefRepository.getClientData()?.let {
-            exampleViewModel.setClientData(it)
+            viewModel.setClientData(it)
         }
 
-        exampleViewModel.getClientData().observe(this, {
+        viewModel.getClientData().observe(this, {
             prefRepository.setClientData(it)
         })
-
-        loading.visibility = View.VISIBLE
-        exampleViewModel.getViewState().observe(this, {
+        viewModel.getViewState().observe(this, {
             register.visibility = View.GONE
             authenticate.visibility = View.GONE
-            waitLoginCode.visibility = View.GONE
-            hello.visibility = View.GONE
+            loggedIn.visibility = View.GONE
             loading.visibility = View.GONE
-            easyaccess.visibility = View.GONE
+            easyAccess.visibility = View.GONE
             when (it) {
                 null, ViewState.RegisterClient -> {
                     register.visibility = View.VISIBLE
@@ -71,102 +74,97 @@ class ExampleFragment : Fragment() {
                 ViewState.Authenticate -> {
                     authenticate.visibility = View.VISIBLE
                 }
-                ViewState.WaitLoginData -> {
-                    waitLoginCode.visibility = View.VISIBLE
+                ViewState.LoggedIn -> {
+                    loggedIn.visibility = View.VISIBLE
                 }
-                ViewState.Hello -> {
-                    hello.visibility = View.VISIBLE
-                }
-                ViewState.Easyaccess -> {
-                    easyaccess.visibility = View.VISIBLE
+                ViewState.EasyAccess -> {
+                    easyAccess.visibility = View.VISIBLE
                 }
             }
         })
 
         registerButton.setOnClickListener {
-
             registerTokenInput.text?.toString()
                 ?.let {
-                    exampleViewModel.registerClient(it)
+                    viewModel.createClient(it)
                 }
         }
 
         logoutButton.setOnClickListener {
-            exampleViewModel.logout()
+            viewModel.logout()
         }
 
-        // Easy Access
-        deregisterButton.setOnClickListener {
-            exampleViewModel.deregisterClient()
-        }
-
-        loginButton.setOnClickListener {
-            exampleViewModel.authenticate()
-        }
-
-        exampleViewModel.getTokenSet().observe(this, { tokenSet ->
+        viewModel.getTokenSet().observe(this, { tokenSet ->
             subjectMessage.text = tokenSet.sub
 
             // Fetch message from playground with access token
-            exampleViewModel.hello(tokenSet.accessToken).observe(this, { helloResponse ->
-                helloResponse?.let {
-                    backendMessage.text = "Hello: ${it.hello}"
-                }
-            })
+            viewModel.fetchMessageFromTestService(tokenSet.accessToken)
+                .observe(this, { helloResponse ->
+                    helloResponse?.let {
+                        backendMessage.text = "Hello: ${it.hello}"
+                    }
+                })
         })
 
-        exampleViewModel.getAuthentication().observe(this, {
-            val intent = Intent(Intent.ACTION_VIEW, it.appLink)
-            if (intent.resolveActivity(requireActivity().packageManager) != null) {
-                startActivityForResult(intent, LOGIN_ACTIVITY)
-            } else {
-                exampleViewModel.fetchMetadata()
-                exampleViewModel.fetchState()
-                loginCodeMessage.text = it.loginCode
-
-                val qrgEncoder =
-                    QRGEncoder("${it.appLink}", null, QRGContents.Type.TEXT, 200)
-                try {
-                    qrCode.setImageBitmap(qrgEncoder.bitmap)
-                } catch (e: WriterException) {
-                    Timber.e(e)
-                }
-            }
-        })
-
-        exampleViewModel.getState().observe(this, {
-            stateMessage.text = it.value
-            when (it) {
-                State.Updated -> {
-                    exampleViewModel.verify()
-                }
-                State.Init,
-                State.Started,
-                -> {
-                    Handler().postDelayed({
-                        exampleViewModel.fetchState()
-                    }, 5000)
-                }
-                else -> {
-                    Timber.e("Unhandled state")
-                }
-            }
-        })
-
-        exampleViewModel.getMetadata().observe(this, { metadata ->
+        // Easy Access
+        deregisterButton.setOnClickListener { viewModel.deregisterClient() }
+        loginButton.setOnClickListener { viewModel.authenticate() }
+        viewModel.getAuthentication().observe(this, ::handleLoginData)
+        viewModel.getLoginState().observe(this, ::handleLoginState)
+        viewModel.getMetadata().observe(this, { metadata ->
             metadataMessage.text = metadata
                 .values
                 .joinToString("\n") { value ->
-                    val t = value.translations.first { it.lang == metadata.defaultLang }
-                    t.value
+                    value.translations.first { it.lang == metadata.defaultLang }.value
                 }
         })
+    }
+
+    private fun handleLoginState(loginState: LoginState) {
+        stateMessage.text = loginState.value
+        when (loginState) {
+            LoginState.Init,
+            LoginState.Started,
+            -> {
+                Thread {
+                    Handler(Looper.getMainLooper())
+                        .postDelayed(viewModel::fetchLoginState, 5000)
+                }.start()
+            }
+            LoginState.Updated -> {
+                viewModel.verifyLoginData()
+            }
+            else -> {
+                Timber.e("Unhandled state")
+            }
+        }
+    }
+
+    private fun handleLoginData(loginData: LoginData) {
+        val intent = Intent(Intent.ACTION_VIEW, loginData.appLink)
+        if (intent.resolveActivity(requireActivity().packageManager) != null) {
+            startActivityForResult(intent, LOGIN_ACTIVITY)
+        } else {
+            viewModel.fetchMetadata()
+            viewModel.fetchLoginState()
+            loginCodeMessage.text = loginData.loginCode
+
+            try {
+                val qrgEncoder =
+                    QRGEncoder(loginData.appLink.toString(), null, QRGContents.Type.TEXT, 200)
+                qrCode.setImageBitmap(qrgEncoder.bitmap)
+            } catch (e: WriterException) {
+                Timber.e(e)
+            }
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == LOGIN_ACTIVITY) {
-            exampleViewModel.verify()
+            viewModel.verifyLoginData()
+        } else {
+            Timber.e("Invalid requestCode: $requestCode")
         }
     }
 }
