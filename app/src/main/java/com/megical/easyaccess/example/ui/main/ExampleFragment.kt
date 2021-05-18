@@ -41,7 +41,12 @@ class ExampleFragment : Fragment() {
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
+
         viewModel = ViewModelProvider(this).get(ExampleViewModel::class.java)
+
+        requireActivity().intent?.data?.getQueryParameter("clientToken")?.let {
+            viewModel.createClient(it)
+        }
 
         viewModel.getHealthcheck().observe(this, {
             if (it != null) {
