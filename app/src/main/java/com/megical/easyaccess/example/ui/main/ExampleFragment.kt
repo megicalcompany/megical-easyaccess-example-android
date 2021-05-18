@@ -49,10 +49,10 @@ class ExampleFragment : Fragment() {
         }
 
         viewModel.getHealthcheck().observe(this, {
-            if (it != null) {
-                healthcheckTextView.text = "Playground running"
+            healthcheckTextView.text = if (it != null) {
+                "Playground running: ${it.buildDate}"
             } else {
-                healthcheckTextView.text = "Playground not running!"
+                "Playground DOWN!"
             }
         })
 
