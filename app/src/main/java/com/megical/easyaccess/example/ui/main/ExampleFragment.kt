@@ -44,10 +44,6 @@ class ExampleFragment : Fragment() {
 
         viewModel = ViewModelProvider(this).get(ExampleViewModel::class.java)
 
-        requireActivity().intent?.data?.getQueryParameter("clientToken")?.let {
-            viewModel.createClient(it)
-        }
-
         viewModel.getHealthcheck().observe(this, {
             healthcheckTextView.text = if (it != null) {
                 "Playground running: ${it.buildDate}"
@@ -56,13 +52,26 @@ class ExampleFragment : Fragment() {
             }
         })
 
-        prefRepository.getClientData()?.let {
-            viewModel.setClientData(it)
-        }
+        // Get Registered client data
+        prefRepository.getClientData()
+            .let {
+                if (it != null) {
+                    viewModel.setClientData(it)
+                } else {
+                    // Handle app link to register client
+                    requireActivity().intent?.data?.getQueryParameter("clientToken")
+                        ?.let { clientToken ->
+                            viewModel.createClient(clientToken)
+                        }
+                }
+            }
 
+        // Set client data to viewModel
         viewModel.getClientData().observe(this, {
             prefRepository.setClientData(it)
         })
+
+        // Show different pages
         viewModel.getViewState().observe(this, {
             register.visibility = View.GONE
             authenticate.visibility = View.GONE
@@ -111,7 +120,7 @@ class ExampleFragment : Fragment() {
                 })
         })
 
-        // Easy Access
+        // Easy Access specific handlers
         deregisterButton.setOnClickListener { viewModel.deregisterClient() }
         loginButton.setOnClickListener { viewModel.authenticate() }
         viewModel.getAuthentication().observe(this, ::handleLoginData)
