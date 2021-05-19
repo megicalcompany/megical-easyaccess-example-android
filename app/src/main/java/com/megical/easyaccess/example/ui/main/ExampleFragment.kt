@@ -12,17 +12,19 @@ import androidmads.library.qrgenearator.QRGEncoder
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.google.zxing.WriterException
-import com.megical.easyaccess.example.R
 import com.megical.easyaccess.example.SettingsRepository
+import com.megical.easyaccess.example.databinding.MainFragmentBinding
 import com.megical.easyaccess.sdk.LoginData
 import com.megical.easyaccess.sdk.LoginState
-import kotlinx.android.synthetic.main.main_fragment.*
 import timber.log.Timber
 
 
 const val LOGIN_ACTIVITY = 1
 
 class ExampleFragment : Fragment() {
+
+    private var _binding: MainFragmentBinding? = null
+    private val binding get() = _binding!!
 
     private val prefRepository by lazy { SettingsRepository(requireContext()) }
 
@@ -36,7 +38,13 @@ class ExampleFragment : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?,
     ): View {
-        return inflater.inflate(R.layout.main_fragment, container, false)
+        _binding = MainFragmentBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
@@ -45,7 +53,7 @@ class ExampleFragment : Fragment() {
         viewModel = ViewModelProvider(this).get(ExampleViewModel::class.java)
 
         viewModel.getHealthcheck().observe(this, {
-            healthcheckTextView.text = if (it != null) {
+            binding.healthcheckTextView.text = if (it != null) {
                 "Playground running: ${it.buildDate}"
             } else {
                 "Playground DOWN!"
@@ -73,60 +81,60 @@ class ExampleFragment : Fragment() {
 
         // Show different pages
         viewModel.getViewState().observe(this, {
-            register.visibility = View.GONE
-            authenticate.visibility = View.GONE
-            loggedIn.visibility = View.GONE
-            loading.visibility = View.GONE
-            easyAccess.visibility = View.GONE
+            binding.register.visibility = View.GONE
+            binding.authenticate.visibility = View.GONE
+            binding.loggedIn.visibility = View.GONE
+            binding.loading.visibility = View.GONE
+            binding.easyAccess.visibility = View.GONE
             when (it) {
                 null, ViewState.RegisterClient -> {
-                    register.visibility = View.VISIBLE
+                    binding.register.visibility = View.VISIBLE
                 }
                 ViewState.Loading -> {
-                    loading.visibility = View.VISIBLE
+                    binding.loading.visibility = View.VISIBLE
                 }
                 ViewState.Authenticate -> {
-                    authenticate.visibility = View.VISIBLE
+                    binding.authenticate.visibility = View.VISIBLE
                 }
                 ViewState.LoggedIn -> {
-                    loggedIn.visibility = View.VISIBLE
+                    binding.loggedIn.visibility = View.VISIBLE
                 }
                 ViewState.EasyAccess -> {
-                    easyAccess.visibility = View.VISIBLE
+                    binding.easyAccess.visibility = View.VISIBLE
                 }
             }
         })
 
-        registerButton.setOnClickListener {
-            registerTokenInput.text?.toString()
+        binding.registerButton.setOnClickListener {
+            binding.registerTokenInput.text?.toString()
                 ?.let {
                     viewModel.createClient(it)
                 }
         }
 
-        logoutButton.setOnClickListener {
+        binding.logoutButton.setOnClickListener {
             viewModel.logout()
         }
 
         viewModel.getTokenSet().observe(this, { tokenSet ->
-            subjectMessage.text = tokenSet.sub
+            binding.subjectMessage.text = tokenSet.sub
 
             // Fetch message from playground with access token
             viewModel.fetchMessageFromTestService(tokenSet.accessToken)
                 .observe(this, { helloResponse ->
                     helloResponse?.let {
-                        backendMessage.text = "Hello: ${it.hello}"
+                        binding.backendMessage.text = "Hello: ${it.hello}"
                     }
                 })
         })
 
         // Easy Access specific handlers
-        deregisterButton.setOnClickListener { viewModel.deregisterClient() }
-        loginButton.setOnClickListener { viewModel.authenticate() }
+        binding.deregisterButton.setOnClickListener { viewModel.deregisterClient() }
+        binding.loginButton.setOnClickListener { viewModel.authenticate() }
         viewModel.getAuthentication().observe(this, ::handleLoginData)
         viewModel.getLoginState().observe(this, ::handleLoginState)
         viewModel.getMetadata().observe(this, { metadata ->
-            metadataMessage.text = metadata
+            binding.metadataMessage.text = metadata
                 .values
                 .joinToString("\n") { value ->
                     value.translations.first { it.lang == metadata.defaultLang }.value
@@ -135,7 +143,7 @@ class ExampleFragment : Fragment() {
     }
 
     private fun handleLoginState(loginState: LoginState) {
-        stateMessage.text = loginState.value
+        binding.stateMessage.text = loginState.value
         when (loginState) {
             LoginState.Init,
             LoginState.Started,
@@ -161,12 +169,12 @@ class ExampleFragment : Fragment() {
         } else {
             viewModel.fetchMetadata()
             viewModel.fetchLoginState()
-            loginCodeMessage.text = loginData.loginCode
+            binding.loginCodeMessage.text = loginData.loginCode
 
             try {
                 val qrgEncoder =
                     QRGEncoder(loginData.appLink.toString(), null, QRGContents.Type.TEXT, 200)
-                qrCode.setImageBitmap(qrgEncoder.bitmap)
+                binding.qrCode.setImageBitmap(qrgEncoder.bitmap)
             } catch (e: WriterException) {
                 Timber.e(e)
             }

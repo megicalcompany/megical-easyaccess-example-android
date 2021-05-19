@@ -2,6 +2,11 @@
 
 ## Building test app
 
+Init submodule
+
+`git submodule update --init --recursive`
+
+`./gradlew assemble`
 
 
 ## Registering test app client:
