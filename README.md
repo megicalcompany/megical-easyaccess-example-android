@@ -1,15 +1,43 @@
 # Megical Easy Access SDK
 
+## Setup sdk for your app
+
+1. Clone sdk
+```
+git clone --depth=1 --branch=master https://github.com/megicalcompany/MegicalEasyAccess-SDK-Android
+```
+2. Add module to project 
+
+settings.gradle:
+```
+include ':MegicalEasyAccess-SDK-Android'
+```
+ 
+app/build.gradle:
+```
+dependencies {
+    implementation project(":MegicalEasyAccess-SDK-Android")
+}
+```
+
+
 ## Building test app
 
-Init submodule
+1. clone sdk
 
-`git submodule update --init --recursive`
+```
+git clone --depth=1 --branch=master https://github.com/megicalcompany/MegicalEasyAccess-SDK-Android
+```
 
-`./gradlew assemble`
+2. build app
+```
+./gradlew assemble
+```
 
 
-## Registering test app client:
+## Using test app and sdk
+
+#### Registering test app client:
 
 Test app registration token can be obtained from:
 
@@ -19,9 +47,9 @@ You must login using working id card.
 
 Web-page contains app-link which you can use to open example app and automatically register client.
 
-Registration token is one time only and it is used to fetch openId client data from test-service.
+Registration token can be used only once. It is used to fetch openId client data from test-service.
 
-Resource returns auth-service, client data and one time client registration token for auth-service.
+Resource returns auth-service url, client data and one time client registration token for auth-service.
 
 ```
 val (
@@ -34,21 +62,21 @@ val (
 ) = playgroundRestApi.openIdClientData(testAppToken)
 ```
 
-## SDK usage starts from here
+### SDK usage starts from here
 
-### Register client with auth-service:
+#### Register client with auth-service:
 
 Use client token to register oauth client with auth-service.
 
-- `authEnvUrl` is the auth-service url.
+- `authEnvUrl` auth-service url.
 - `clientToken` returned from test-service. One use only. 5 minutes ttl
-- `deviceId` is string. Example app uses random uuid.
+- `deviceId` string. Example app uses random uuid. 
 https://developer.android.com/training/articles/user-data-ids#kotlin
-- `keyId` is the name of keypair in keychain. Example app uses appId.
+- `keyId` name of keypair in keychain. Example app uses appId.
 
-Save client data for later use.
+Save client data for later use. Keypair is stored in trust zone. Other data can be public.  
 
-Client registration should be done only once.
+Registering client should be only once when user first time starts to use app.
 
 ```
 megicalAuthApi.registerClient(
@@ -67,16 +95,16 @@ megicalAuthApi.registerClient(
 )
 ```
 
-### Initiate authentication:
+#### Initiate authentication:
 
 After client is registered you can initiate authentication with auth-service.
 
-- `authEnv` tells Megical Easy Access app which env it should connect.
-- `authEnvUrl` is the auth-service url.
-- `keyId` is keychain name.
-- `clientId` is oauth client id. It was return when registerClient was called.
-- `audience` is accessToken audience.
-- `redirectUrl` is apps callback url
+- `authEnv` Megical Easy Access app uses this to determine which env to connect.
+- `authEnvUrl` auth-service url.
+- `keyId` keychain name.
+- `clientId` oauth client id
+- `audience` accessToken audience. introspect returns this audience info
+- `redirectUrl` App callback url. Should be unique per app.
 
 ```
 megicalAuthApi.initAuthentication(
@@ -98,11 +126,10 @@ megicalAuthApi.initAuthentication(
 )
 ```
 
-### Handle login data:
+#### Handle login data:
 
-If Megical Easy Access app is installed you can open `loginData.appLink` directly
-else app needs to show loginCode and/or login qr-code.
-
+`loginData.appLink` can be used to open Megical Easy Access if it is installed on device.
+If it is not installed, app should show loginCode and/or appLink qr-code.
 ```
 private fun handleLoginData(loginData: LoginData) {
     val intent = Intent(Intent.ACTION_VIEW, loginData.appLink)
@@ -124,8 +151,8 @@ private fun handleLoginData(loginData: LoginData) {
 }
 ```
 
-If Megical Easy Access app was opened with `startActivityForResult` you must implement
-`onActivityResult` which calls verify:
+`onActivityResult` must be implemented to handle return from Megical Easy Access app.
+It should call verifyAuthentication if activity was successful
 ```
 override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
     super.onActivityResult(requestCode, resultCode, data)
@@ -159,7 +186,6 @@ login state.
 5 seconds should be good polling interval.
 
 When login state is `Updated` call `megicalAuthApi.verifyAuthentication()`
-
 ```
     private fun handleLoginState(loginState: LoginState) {
         when (loginState) {
@@ -184,26 +210,12 @@ When login state is `Updated` call `megicalAuthApi.verifyAuthentication()`
     }
 ```
 
-```
-fun verifyLoginData() {
-    megicalAuthApi.verifyAuthentication(
-        object : MegicalCallback<TokenSet> {
-            override fun onSuccess(response: TokenSet) {
-                // handle tokens
-            }
-
-            override fun onFailure(error: MegicalException) {
-                // handle errors
-            }
-        })
-}
-```
-
-### Deregister device
+#### Deregister device
 
 Call deleteClient to destroy client from auth-service and to remove client key pair from keychain.
 Delete also saved client data.
 
+This is optional. There shouldn't be real need to delete client from auth-service.
 ```
 megicalAuthApi.deleteClient(
     authEnvUrl,

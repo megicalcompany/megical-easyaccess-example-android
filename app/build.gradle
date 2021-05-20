@@ -48,7 +48,7 @@ dependencies {
     androidTestImplementation 'androidx.test.ext:junit:1.1.2'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
 
-    implementation project(":megical-easyaccess-sdk-android")
+    implementation project(":MegicalEasyAccess-SDK-Android")
     implementation project(":playground")
 
     // Network
