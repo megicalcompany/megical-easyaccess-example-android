@@ -27,13 +27,15 @@ dependencies {
 
 ## Building test app
 
-1. clone sdk
+1. clone this repository and open it in android studio
+
+2. clone sdk
 
 ```
 git clone --depth=1 --branch=master https://github.com/megicalcompany/MegicalEasyAccess-SDK-Android
 ```
 
-2. build app
+3. build app
 
 ```
 ./gradlew assemble
