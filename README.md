@@ -29,7 +29,7 @@ dependencies {
 
 1. clone this repository and open it in android studio
 
-2. clone sdk
+2. clone sdk under this repository
 
 ```
 git clone --depth=1 --branch=master https://github.com/megicalcompany/MegicalEasyAccess-SDK-Android
@@ -49,7 +49,7 @@ Test app registration token can be obtained from:
 
 https://playground.megical.com/easyaccess/
 
-You must login using working id card.
+You must login using working id card on the same device, where the test app is installed.
 
 Web-page contains app-link which you can use to open example app and automatically register client.
 
