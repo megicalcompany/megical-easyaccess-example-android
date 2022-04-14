@@ -81,6 +81,7 @@
             android:id="@+id/authenticate"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            tools:visibility="gone"
             android:visibility="gone">
 
             <Button
@@ -101,12 +102,91 @@
                 android:layout_marginEnd="32dp"
                 android:layout_marginBottom="32dp"
                 android:text="Authenticate"
+                app:layout_constraintBottom_toTopOf="@id/signButton" />
+
+            <Button
+                android:id="@+id/signButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="32dp"
+                android:layout_marginEnd="32dp"
+                android:layout_marginBottom="32dp"
+                android:text="Sign"
                 app:layout_constraintBottom_toBottomOf="parent" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>
 
         <androidx.constraintlayout.widget.ConstraintLayout
-            android:id="@+id/loggedIn"
+            android:id="@+id/signResult"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            tools:visibility="gone"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/signResultDataTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="32dp"
+                android:text="Data to sign:"
+                app:layout_constraintEnd_toEndOf="parent"
+                android:textFontWeight="2"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/signResultData"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="32dp"
+                android:layout_marginTop="8dp"
+                android:text=""
+                app:layout_constraintEnd_toEndOf="parent"
+                android:textSize="14sp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/signResultDataTitle"
+                tools:text="@tools:sample/lorem[6]" />
+
+            <TextView
+                android:id="@+id/signResultResultTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="32dp"
+                android:layout_marginTop="32dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                android:text="Result:"
+                android:textFontWeight="2"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/signResultData" />
+
+            <TextView
+                android:id="@+id/signResultResult"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="32dp"
+                android:layout_marginTop="8dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                android:text=""
+                android:textSize="22sp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/signResultResultTitle"
+                tools:text="OK" />
+
+            <Button
+                android:id="@+id/backFromSigning"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="32dp"
+                android:layout_marginEnd="32dp"
+                android:layout_marginBottom="32dp"
+                android:text="Back"
+                app:layout_constraintBottom_toBottomOf="parent" />
+
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+        
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/authResult"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:visibility="gone">
@@ -163,7 +243,7 @@
                 android:layout_marginStart="32dp"
                 android:layout_marginEnd="32dp"
                 android:layout_marginBottom="32dp"
-                android:text="Log out"
+                android:text="Back"
                 app:layout_constraintBottom_toBottomOf="parent" />
 
 
@@ -241,6 +321,7 @@
                 tools:text="init" />
 
             <ImageView
+                android:background="@color/black"
                 android:id="@+id/qrCode"
                 android:layout_width="200dp"
                 android:layout_height="200dp"

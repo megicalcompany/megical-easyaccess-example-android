@@ -9,22 +9,24 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.*
-import com.megical.easyaccess.sdk.MegicalAuthApi.Callback as MegicalCallback
+import com.megical.easyaccess.sdk.Callback as MegicalCallback
 
 const val REDIRECT_URL = "com.megical.ea.example:/oauth-callback"
 
 enum class ViewState {
     RegisterClient,
     Loading,
-    Authenticate,
+    Operate,
     EasyAccess,
-    LoggedIn,
+    AuthResult,
+    SignResult
 }
 
 class ExampleViewModel : ViewModel() {
 
     private val playgroundRestApi = PlaygroundRestApi()
     private val megicalAuthApi = MegicalAuthApi()
+    private val megicalSignApi = MegicalSignApi()
 
     private val viewState: MutableLiveData<ViewState> by lazy {
         MutableLiveData<ViewState>(ViewState.RegisterClient)
@@ -49,6 +51,16 @@ class ExampleViewModel : ViewModel() {
     private val tokenSet: MutableLiveData<TokenSet> by lazy {
         MutableLiveData<TokenSet>()
     }
+
+    private val signingResult: MutableLiveData<SigningData> by lazy {
+        MutableLiveData<SigningData>()
+    }
+
+    private val dataToSign by lazy {
+        MutableLiveData<String>()
+    }
+
+    fun getDataToSign(): LiveData<String> = dataToSign
 
     fun getViewState(): LiveData<ViewState> {
         return viewState
@@ -116,11 +128,36 @@ class ExampleViewModel : ViewModel() {
 
     fun setClientData(value: ClientData) {
         clientData.postValue(value)
-        viewState.postValue(ViewState.Authenticate)
+        viewState.postValue(ViewState.Operate)
     }
 
     fun getAuthentication(): LiveData<LoginData> {
         return loginData
+    }
+
+    fun sign(data: String) {
+        viewState.postValue(ViewState.Loading)
+        dataToSign.postValue(data)
+        megicalSignApi.initSign(
+            getClientData().value!!.authEnv,
+            "https://playground.megical.com/easyaccess/api/v1/sign/signature",
+            data,
+            object : MegicalCallback<SigningData> {
+
+                override fun onSuccess(response: SigningData) {
+                    signingResult.postValue(response)
+                }
+
+                override fun onFailure(error: MegicalException) {
+                    Timber.e(error)
+                    viewState.postValue(ViewState.Operate)
+                }
+
+            })
+    }
+
+    fun getSigningResult(): LiveData<SigningData> {
+        return signingResult
     }
 
     fun authenticate() {
@@ -140,7 +177,7 @@ class ExampleViewModel : ViewModel() {
 
                     override fun onFailure(error: MegicalException) {
                         Timber.e(error)
-                        viewState.postValue(ViewState.Authenticate)
+                        viewState.postValue(ViewState.Operate)
                     }
                 })
         }
@@ -178,7 +215,7 @@ class ExampleViewModel : ViewModel() {
 
             override fun onFailure(error: MegicalException) {
                 Timber.e(error)
-                viewState.postValue(ViewState.Authenticate)
+                viewState.postValue(ViewState.Operate)
             }
         })
     }
@@ -197,25 +234,33 @@ class ExampleViewModel : ViewModel() {
 
                     override fun onFailure(error: MegicalException) {
                         Timber.e(error)
-                        viewState.postValue(ViewState.Authenticate)
+                        viewState.postValue(ViewState.Operate)
                     }
                 })
         }
     }
 
+    fun clearOperation() {
+        viewState.postValue(ViewState.Operate)
+    }
+
+    fun showEasyAccessRequest() {
+        viewState.postValue(ViewState.EasyAccess)
+    }
+    
+    fun showSigningResult() {
+        viewState.postValue(ViewState.SignResult)
+    }
+
     fun fetchMessageFromTestService(accessToken: String) = liveData(Dispatchers.IO) {
         try {
             emit(playgroundRestApi.hello(accessToken))
-            viewState.postValue(ViewState.LoggedIn)
+            viewState.postValue(ViewState.AuthResult)
         } catch (error: Exception) {
             Timber.e(error)
-            viewState.postValue(ViewState.Authenticate)
+            viewState.postValue(ViewState.Operate)
             emit(null)
         }
-    }
-
-    fun logout() {
-        viewState.postValue(ViewState.Authenticate)
     }
 
     fun deregisterClient() {

@@ -1,12 +1,15 @@
 package com.megical.easyaccess.example.ui.main
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Base64
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidmads.library.qrgenearator.QRGContents
 import androidmads.library.qrgenearator.QRGEncoder
 import androidx.fragment.app.Fragment
@@ -16,31 +19,30 @@ import com.megical.easyaccess.example.SettingsRepository
 import com.megical.easyaccess.example.databinding.MainFragmentBinding
 import com.megical.easyaccess.sdk.LoginData
 import com.megical.easyaccess.sdk.LoginState
+import com.megical.easyaccess.sdk.SigningData
 import timber.log.Timber
-
-
-const val LOGIN_ACTIVITY = 1
+import java.security.MessageDigest
 
 class ExampleFragment : Fragment() {
 
+    companion object {
+        const val REQUEST_CODE_AUTHENTICATE = 2098
+        const val REQUEST_CODE_SIGNATURE = 2099
+
+        fun newInstance() = ExampleFragment()
+    }
+    
     private var _binding: MainFragmentBinding? = null
     private val binding get() = _binding!!
 
     private val prefRepository by lazy { SettingsRepository(requireContext()) }
-
-    companion object {
-        fun newInstance() = ExampleFragment()
-    }
 
     private lateinit var viewModel: ExampleViewModel
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?,
-    ): View {
-        _binding = MainFragmentBinding.inflate(inflater, container, false)
-        return binding.root
-    }
+    ) = MainFragmentBinding.inflate(inflater, container, false).also { _binding = it }.root
 
     override fun onDestroyView() {
         super.onDestroyView()
@@ -52,40 +54,33 @@ class ExampleFragment : Fragment() {
 
         viewModel = ViewModelProvider(this).get(ExampleViewModel::class.java)
 
-        viewModel.getHealthcheck().observe(this, {
+        viewModel.getHealthcheck().observe(this) {
             binding.healthcheckTextView.text = if (it != null) {
                 "Playground running: ${it.buildDate}"
             } else {
                 "Playground DOWN!"
             }
-        })
+        }
 
-        // Get Registered client data
-        prefRepository.getClientData()
-            .let {
-                if (it != null) {
-                    viewModel.setClientData(it)
-                } else {
-                    // Handle app link to register client
-                    requireActivity().intent?.data?.getQueryParameter("clientToken")
-                        ?.let { clientToken ->
-                            viewModel.createClient(clientToken)
-                        }
-                }
+        // Get Registered client data or Handle app link to register client
+        prefRepository.clientData?.let { viewModel.setClientData(it) }
+            ?: requireActivity().intent?.data?.getQueryParameter("clientToken")?.let {
+                viewModel.createClient(it)
             }
 
-        // Set client data to viewModel
-        viewModel.getClientData().observe(this, {
-            prefRepository.setClientData(it)
-        })
+        // Save registered client data to shared prefs
+        viewModel.getClientData().observe(this) {
+            prefRepository.clientData = it
+        }
 
         // Show different pages
-        viewModel.getViewState().observe(this, {
+        viewModel.getViewState().observe(this) {
             binding.register.visibility = View.GONE
             binding.authenticate.visibility = View.GONE
-            binding.loggedIn.visibility = View.GONE
+            binding.authResult.visibility = View.GONE
             binding.loading.visibility = View.GONE
             binding.easyAccess.visibility = View.GONE
+            binding.signResult.visibility = View.GONE
             when (it) {
                 null, ViewState.RegisterClient -> {
                     binding.register.visibility = View.VISIBLE
@@ -93,17 +88,20 @@ class ExampleFragment : Fragment() {
                 ViewState.Loading -> {
                     binding.loading.visibility = View.VISIBLE
                 }
-                ViewState.Authenticate -> {
+                ViewState.Operate -> {
                     binding.authenticate.visibility = View.VISIBLE
                 }
-                ViewState.LoggedIn -> {
-                    binding.loggedIn.visibility = View.VISIBLE
+                ViewState.AuthResult -> {
+                    binding.authResult.visibility = View.VISIBLE
                 }
                 ViewState.EasyAccess -> {
                     binding.easyAccess.visibility = View.VISIBLE
                 }
+                ViewState.SignResult -> {
+                    binding.signResult.visibility = View.VISIBLE
+                }
             }
-        })
+        }
 
         binding.registerButton.setOnClickListener {
             binding.registerTokenInput.text?.toString()
@@ -113,33 +111,52 @@ class ExampleFragment : Fragment() {
         }
 
         binding.logoutButton.setOnClickListener {
-            viewModel.logout()
+            viewModel.clearOperation()
         }
 
-        viewModel.getTokenSet().observe(this, { tokenSet ->
+        viewModel.getTokenSet().observe(this) { tokenSet ->
             binding.subjectMessage.text = tokenSet.sub
 
             // Fetch message from playground with access token
             viewModel.fetchMessageFromTestService(tokenSet.accessToken)
-                .observe(this, { helloResponse ->
+                .observe(this) { helloResponse ->
                     helloResponse?.let {
                         binding.backendMessage.text = "Hello: ${it.hello}"
                     }
-                })
-        })
+                }
+        }
+        
+        viewModel.getDataToSign().observe(this) {
+            binding.signResultData.text = it
+        }
 
         // Easy Access specific handlers
         binding.deregisterButton.setOnClickListener { viewModel.deregisterClient() }
         binding.loginButton.setOnClickListener { viewModel.authenticate() }
+        binding.signButton.setOnClickListener { 
+            
+            // Example data is just hashed timestamp
+            val exampleData = MessageDigest
+                .getInstance("SHA-512")
+                .digest(System.currentTimeMillis().toString().toByteArray())
+                .let {
+                    Base64.encode(it, Base64.URL_SAFE or Base64.NO_WRAP).decodeToString()
+                }
+            
+            viewModel.sign(exampleData)
+        }
+        
         viewModel.getAuthentication().observe(this, ::handleLoginData)
         viewModel.getLoginState().observe(this, ::handleLoginState)
-        viewModel.getMetadata().observe(this, { metadata ->
+        viewModel.getMetadata().observe(this) { metadata ->
             binding.metadataMessage.text = metadata
                 .values
                 .joinToString("\n") { value ->
                     value.translations.first { it.lang == metadata.defaultLang }.value
                 }
-        })
+        }
+        
+        viewModel.getSigningResult().observe(this, ::handleSigningResult)
     }
 
     private fun handleLoginState(loginState: LoginState) {
@@ -165,28 +182,54 @@ class ExampleFragment : Fragment() {
     private fun handleLoginData(loginData: LoginData) {
         val intent = Intent(Intent.ACTION_VIEW, loginData.appLink)
         if (intent.resolveActivity(requireActivity().packageManager) != null) {
-            startActivityForResult(intent, LOGIN_ACTIVITY)
+            startActivityForResult(intent, REQUEST_CODE_AUTHENTICATE)
         } else {
             viewModel.fetchMetadata()
             viewModel.fetchLoginState()
+            binding.loginCodeTitle.text = "Login code:"
             binding.loginCodeMessage.text = loginData.loginCode
-
-            try {
-                val qrgEncoder =
-                    QRGEncoder(loginData.appLink.toString(), null, QRGContents.Type.TEXT, 200)
-                binding.qrCode.setImageBitmap(qrgEncoder.bitmap)
-            } catch (e: WriterException) {
-                Timber.e(e)
-            }
+            trySetQR(loginData.appLink.toString())
         }
     }
 
+    private fun handleSigningResult(signingData: SigningData) {
+        val intent = Intent(Intent.ACTION_VIEW, signingData.appLink)
+        if (intent.resolveActivity(requireActivity().packageManager) != null) {
+            startActivityForResult(intent, REQUEST_CODE_SIGNATURE)
+        } else {
+            viewModel.showEasyAccessRequest()
+            binding.loginCodeTitle.text = "Signature code:"
+            binding.loginCodeMessage.text = signingData.signatureCode
+            trySetQR(signingData.appLink.toString())
+        }
+    }
+
+    private fun trySetQR(data: String) {
+        try {
+            val qrgEncoder = QRGEncoder(data, null, QRGContents.Type.TEXT, 200)
+            binding.qrCode.setImageBitmap(qrgEncoder.bitmap)
+        } catch (e: WriterException) {
+            Timber.e(e)
+        }
+    }
+    
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == LOGIN_ACTIVITY) {
-            viewModel.verifyLoginData()
-        } else {
-            Timber.e("Invalid requestCode: $requestCode")
+        if (requestCode == REQUEST_CODE_AUTHENTICATE) {
+            if(resultCode == Activity.RESULT_OK) {
+                viewModel.verifyLoginData()
+            } else {
+                viewModel.clearOperation()
+                Toast.makeText(requireContext(), "User cancelled authentication", Toast.LENGTH_SHORT).show()
+            }
+        } else if (requestCode == REQUEST_CODE_SIGNATURE) {
+            if(resultCode == Activity.RESULT_OK) {
+                viewModel.showSigningResult()
+                binding.signResultResult.text = "OK"
+            } else {
+                viewModel.clearOperation()
+                Toast.makeText(requireContext(), "User cancelled signing", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }
