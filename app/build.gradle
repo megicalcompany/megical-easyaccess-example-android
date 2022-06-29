@@ -6,7 +6,6 @@ plugins {
 
 android {
     compileSdkVersion 30
-    buildToolsVersion "30.0.2"
 
     defaultConfig {
         applicationId "com.megical.easyaccess.example"
@@ -52,8 +51,8 @@ dependencies {
     implementation project(":playground")
 
     // Network
-    implementation "com.squareup.moshi:moshi-kotlin:1.11.0"
-    kapt "com.squareup.moshi:moshi-kotlin-codegen:1.11.0"
+    implementation "com.squareup.moshi:moshi-kotlin:1.13.0"
+    kapt "com.squareup.moshi:moshi-kotlin-codegen:1.13.0"
 
     testImplementation "com.google.truth:truth:1.1.2"
 
