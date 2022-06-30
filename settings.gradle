@@ -1,4 +1,3 @@
 include ':playground'
-include ':MegicalEasyAccess-SDK-Android'
 include ':app'
 rootProject.name = "Easy Access Example"
