@@ -49,12 +49,12 @@ class ExampleFragment : Fragment() {
         _binding = null
     }
 
-    override fun onActivityCreated(savedInstanceState: Bundle?) {
-        super.onActivityCreated(savedInstanceState)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
 
-        viewModel = ViewModelProvider(this).get(ExampleViewModel::class.java)
+        viewModel = ViewModelProvider(this)[ExampleViewModel::class.java]
 
-        viewModel.getHealthcheck().observe(this) {
+        viewModel.getHealthcheck().observe(viewLifecycleOwner) {
             binding.healthcheckTextView.text = if (it != null) {
                 "Playground running: ${it.buildDate}"
             } else {
@@ -69,12 +69,12 @@ class ExampleFragment : Fragment() {
             }
 
         // Save registered client data to shared prefs
-        viewModel.getClientData().observe(this) {
+        viewModel.getClientData().observe(viewLifecycleOwner) {
             prefRepository.clientData = it
         }
 
         // Show different pages
-        viewModel.getViewState().observe(this) {
+        viewModel.getViewState().observe(viewLifecycleOwner) {
             binding.register.visibility = View.GONE
             binding.authenticate.visibility = View.GONE
             binding.authResult.visibility = View.GONE
@@ -114,19 +114,19 @@ class ExampleFragment : Fragment() {
             viewModel.clearOperation()
         }
 
-        viewModel.getTokenSet().observe(this) { tokenSet ->
+        viewModel.getTokenSet().observe(viewLifecycleOwner) { tokenSet ->
             binding.subjectMessage.text = tokenSet.sub
 
             // Fetch message from playground with access token
             viewModel.fetchMessageFromTestService(tokenSet.accessToken)
-                .observe(this) { helloResponse ->
+                .observe(viewLifecycleOwner) { helloResponse ->
                     helloResponse?.let {
                         binding.backendMessage.text = "Hello: ${it.hello}"
                     }
                 }
         }
         
-        viewModel.getDataToSign().observe(this) {
+        viewModel.getDataToSign().observe(viewLifecycleOwner) {
             binding.signResultData.text = it
         }
 
@@ -146,9 +146,9 @@ class ExampleFragment : Fragment() {
             viewModel.sign(exampleData)
         }
         
-        viewModel.getAuthentication().observe(this, ::handleLoginData)
-        viewModel.getLoginState().observe(this, ::handleLoginState)
-        viewModel.getMetadata().observe(this) { metadata ->
+        viewModel.getAuthentication().observe(viewLifecycleOwner, ::handleLoginData)
+        viewModel.getLoginState().observe(viewLifecycleOwner, ::handleLoginState)
+        viewModel.getMetadata().observe(viewLifecycleOwner) { metadata ->
             binding.metadataMessage.text = metadata
                 .values
                 .joinToString("\n") { value ->
@@ -156,7 +156,7 @@ class ExampleFragment : Fragment() {
                 }
         }
         
-        viewModel.getSigningResult().observe(this, ::handleSigningResult)
+        viewModel.getSigningResult().observe(viewLifecycleOwner, ::handleSigningResult)
     }
 
     private fun handleLoginState(loginState: LoginState) {
