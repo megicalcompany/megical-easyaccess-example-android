@@ -32,7 +32,7 @@ class PlaygroundRestApi {
                 )
                 .build()
         )
-        .baseUrl("https://playground.megical.com/test-service/api/v1/")
+        .baseUrl("https://playground.hightrust.id/test-service/api/v1/")
         .addConverterFactory(
             MoshiConverterFactory.create(
                 Moshi
