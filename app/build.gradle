@@ -5,12 +5,12 @@ plugins {
 }
 
 android {
-    compileSdkVersion 33
+    compileSdkVersion 34
 
     defaultConfig {
         applicationId "com.megical.easyaccess.example"
         minSdkVersion 28
-        targetSdkVersion 33
+        targetSdkVersion 34
         versionCode 1
         versionName "1.0"
 
@@ -34,26 +34,27 @@ android {
     buildFeatures {
         viewBinding = true
     }
+    namespace 'com.megical.easyaccess.example'
 }
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.21"
-    implementation 'androidx.core:core-ktx:1.10.0'
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.8.0'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.21"
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.6.1'
-    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.1'
+    implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.8.4'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4'
     testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
 
     implementation 'com.github.megical:easyaccess-sdk-android:-SNAPSHOT'
     implementation project(":playground")
 
     // Network
-    implementation "com.squareup.moshi:moshi-kotlin:1.14.0"
-    kapt "com.squareup.moshi:moshi-kotlin-codegen:1.14.0"
+    implementation "com.squareup.moshi:moshi-kotlin:1.15.1"
+    kapt "com.squareup.moshi:moshi-kotlin-codegen:1.15.1"
 
     testImplementation "com.google.truth:truth:1.1.3"
 
