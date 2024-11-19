@@ -47,7 +47,7 @@ git clone --depth=1 --branch=master https://github.com/megicalcompany/MegicalEas
 
 Test app registration token can be obtained from:
 
-https://playground.megical.com/easyaccess/
+https://playground.hightrust.id/demo/
 
 You must login using working id card.
 
